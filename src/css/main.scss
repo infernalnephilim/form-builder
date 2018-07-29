@@ -1,0 +1,57 @@
+@import "https://fonts.googleapis.com/css?family=Roboto";
+
+$border-color: #A4A4A4;
+* {
+  font-family: Roboto, sans-serif;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+.bg-red {
+  background: #ff0000;
+}
+
+h1{
+  width: 80%;
+}
+.form {
+  width: 80%;
+  max-width: 1200px;
+  margin: 0 auto;
+  button {
+    padding: 5px 10px;
+  }
+}
+
+.question-wrapper {
+  list-style-type: none;
+  padding: 5px;
+  border: 2px solid $border-color;
+  max-width: 700px;
+  .form-row {
+    display: flex;
+    justify-content: flex-end;
+    align-items: baseline;
+    padding: 5px;
+    > label {
+      flex: 1;
+    }
+    > input, > select {
+      flex: 2;
+      padding: 5px;
+      //margin-left: 10px;
+      min-height: 35px;
+    }
+    button:last-of-type {
+      margin-left: 10px;
+    }
+    .flex-1 {
+      flex: 1;
+    }
+  }
+}
+
+.result{
+  padding: 20px;
+}
