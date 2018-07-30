@@ -1,39 +1,7 @@
-function idbOK() {
-  return "indexedDB" in window &&
-    !/iPad|iPhone|iPod/.test(navigator.platform);
-}
-if (!idbOK) {
-  window.alert("Your browser doesn't support a stable version of IndexedDB. Such and such feature will not be available.");
-}
-const dbName = "questionList";
-
-var request = indexedDB.open(dbName, 2);
-
-request.onerror = function (event) {
-  console.log("onerror!");
-  console.dir(event);
-};
-request.onupgradeneeded = function (event) {
-  var db = event.target.result;
-
-  var objectStore = db.createObjectStore("questions", {keyPath: "ssn"});
-
-  objectStore.createIndex("id", "id", {unique: true});
-
-  objectStore.createIndex("conditionAnswer", "conditionAnswer", {unique: false});
-  objectStore.createIndex("condition", "condition", {unique: false});
-  objectStore.createIndex("question", "question", {unique: false});
-  objectStore.createIndex("type", "type", {unique: false});
-  objectStore.createIndex("condition", "condition", {unique: false});
-  objectStore.createIndex("subquestions", "subquestions", {unique: false});
-
-  objectStore.transaction.oncomplete = function (event) {
-    var customerObjectStore = db.transaction("customers", "readwrite").objectStore("customers");
-    customerData.forEach(function (customer) {
-      customerObjectStore.add(customer);
-    });
-  };
-};
+var db;
+const DB_NAME = 'questionList-indexeddb';
+const DB_VERSION = 1;
+const DB_STORE_NAME = 'questions';
 
 var questionList = [];
 
@@ -42,11 +10,129 @@ var questionID = 1;
 var form = document.getElementById("form-builder");
 var addInputButton = document.getElementById("add-input");
 
-const dataContainer = document.getElementsByClassName('result')[0];
+//const dataContainer = document.getElementsByClassName('result')[0];
+
+// var message = "Your changes might not be saved.";
+// window.onbeforeunload = function(event) {
+//   var e = e || window.event;
+//   if (e) {
+//     e.returnValue = message;
+//   }
+//   return message;
+// };
+function idbOK() {
+  return "indexedDB" in window &&
+    !/iPad|iPhone|iPod/.test(navigator.platform);
+}
+
+function openDb() {
+  var req = indexedDB.open(DB_NAME, DB_VERSION);
+  req.onsuccess = function (evt) {
+    db = this.result;
+    getResult(db.store);
+
+    document.getElementById("save-data").addEventListener("click", (event) => {
+      event.preventDefault();
+      saveAllChanges(db.store);
+    });
+    // clearObjectStore(db.store);
+  };
+  req.onerror = function (evt) {
+    console.error("openDb:", evt.target.errorCode);
+  };
+
+  req.onupgradeneeded = function (evt) {
+    console.log("openDb.onupgradeneeded");
+    var store = evt.currentTarget.result.createObjectStore(
+      DB_STORE_NAME, {keyPath: 'id', autoIncrement: true});
+
+    store.createIndex("id", "id", {unique: true});
+    store.createIndex("conditionAnswer", "conditionAnswer", {unique: false});
+    store.createIndex("condition", "condition", {unique: false});
+    store.createIndex("question", "question", {unique: false});
+    store.createIndex("type", "type", {unique: false});
+    store.createIndex("subquestions", "subquestions", {unique: false});
+  };
+}
+
+
+function clearObjectStore(store_name) {
+  var store = getObjectStore(DB_STORE_NAME, 'readwrite');
+  var req = store.clear();
+  req.onsuccess = function (evt) {
+    console.log("Store cleared");
+    getResult(store);
+  };
+  req.onerror = function (evt) {
+    console.error("clearObjectStore:", evt.target.errorCode);
+    console.log(this.error);
+  };
+}
+
+function saveData(store, question) {
+  if (typeof store == 'undefined')
+    store = getObjectStore(DB_STORE_NAME, 'readwrite');
+  store.put(question);
+}
+
+function saveAllChanges(store) {
+  console.log("saveAllChanges");
+  if (typeof store == 'undefined')
+    store = getObjectStore(DB_STORE_NAME, 'readwrite');
+  store.clear();
+  if (questionList.length > 0) {
+    for (let i = 0; i < questionList.length; i++) {
+      store.put(questionList[i]);
+    }
+  }
+  let date = new Date();
+  setMessage("Last saved: " + date.getDate() + "." + date.getMonth() + "." + date.getFullYear() + " " + date.getHours() + ":" + date.getMinutes(), "saved");
+}
+
+
+function deleteData(store, question) {
+  if (typeof store == 'undefined')
+    store = getObjectStore(DB_STORE_NAME, 'readwrite');
+  var objectStoreRequest = store.delete(question);
+
+  objectStoreRequest.onsuccess = function (event) {
+    console.log(question + " removed");
+  };
+}
+
+function getObjectStore(store_name, mode) {
+  var tx = db.transaction(store_name, mode);
+  return tx.objectStore(store_name);
+}
+
+function getResult(store) {
+  if (typeof store == 'undefined')
+    store = getObjectStore(DB_STORE_NAME, 'readwrite');
+  var req;
+  req = store.getAll();
+  req.onsuccess = function (evt) {
+    questionList = req.result;
+    //console.log(questionList);
+
+    parseTree(questionList, 0);
+  };
+  req.onerror = function (evt) {
+    console.error("add error", this.error);
+    console.log(this.error);
+  };
+}
+
+
+if (!idbOK) {
+  window.alert("Your browser doesn't support a stable version of IndexedDB.");
+} else {
+  openDb();
+
+}
 
 function newSubQuestion(id, condition, conditionAnswer, questionText, type) {
   var question = {
-    "id": "q" + id,
+    "id": id,
     "condition": condition,
     "conditionAnswer": conditionAnswer,
     "question": questionText,
@@ -154,9 +240,11 @@ function createFormElement(object, level) {
 
     var newSubQ = newSubQuestion(questionID, condition, conditionText, "", object.type);
     object.subquestions.push(newSubQ);
+    console.log(object.id);
+    // saveSubQuestionData(db.store, newSubQ, object.id);
     form.insertBefore(createFormElement(newSubQ, level + 1), button.nextSibling);
-
-    dataContainer.textContent = JSON.stringify(questionList, null, "  ");
+    setMessage("Your changes might not be saved", "notsaved");
+    //dataContainer.textContent = JSON.stringify(questionList, null, "  ");
 
   });
   defaultQuestion.getElementsByClassName("delete-input")[0].addEventListener("click", (event) => {
@@ -164,8 +252,8 @@ function createFormElement(object, level) {
 
     removeFormRows(object);
     questionList = removeNode(questionList, object.id, level);
-
-    dataContainer.textContent = JSON.stringify(questionList, null, "  ");
+    setMessage("Your changes might not be saved", "notsaved");
+    //dataContainer.textContent = JSON.stringify(questionList, null, "  ");
 
   });
   var inputs = defaultQuestion.getElementsByTagName("input");
@@ -174,6 +262,7 @@ function createFormElement(object, level) {
       inputs[i].addEventListener('change', () => {
         let inputParentID = inputs[i].parentNode.parentNode.parentNode.id;
         changeData(questionList, inputs[i], inputParentID);
+        setMessage("Your changes might not be saved", "notsaved");
       }, false);
 
     }
@@ -185,17 +274,28 @@ function createFormElement(object, level) {
       selects[i].addEventListener('change', () => {
         let inputParentID = selects[i].parentNode.parentNode.parentNode.id;
         changeData(questionList, selects[i], inputParentID);
+        setMessage("Your changes might not be saved", "notsaved");
       });
     }
   }
   return defaultQuestion;
 }
 
+function setMessage(message, saved) {
+  let messageElement = document.getElementById("save-message");
+  messageElement.innerHTML = message;
+  if(saved == "saved"){
+    messageElement.classList.remove("urgent");
+  } else{
+    messageElement.classList.add("urgent");
+  }
+}
+
 function removeFormRows(object) {
   if (object.subquestions.length > 0) {
     for (let i = 0; i < object.subquestions.length; i++) {
       removeFormRows(object.subquestions[i]);
-      dataContainer.textContent = JSON.stringify(questionList, null, "  ");
+      //dataContainer.textContent = JSON.stringify(questionList, null, "  ");
     }
     object.subquestions = [];
   }
@@ -203,9 +303,10 @@ function removeFormRows(object) {
 }
 
 function removeNode(array, id, level) {
+  //deleteData(db.store, id);
   return array.filter(function (item) {
     if (item.subquestions.length > 0) item.subquestions = removeNode(item.subquestions, id, level);
-    dataContainer.textContent = JSON.stringify(questionList, null, "  ");
+    //dataContainer.textContent = JSON.stringify(questionList, null, "  ");
     return item.id !== id;
   });
 }
@@ -213,6 +314,7 @@ function removeNode(array, id, level) {
 function parseTree(array, level) {
   level += 1;
   for (let i = 0, len = array.length; i < len; i++) {
+    if (array[i].id > questionID) questionID = array[i].id + 1;
     form.insertBefore(createFormElement(array[i], level), addInputButton);
     if (array[i].subquestions.length > 0) {
       parseTree(array[i].subquestions, level);
@@ -220,21 +322,18 @@ function parseTree(array, level) {
   }
 }
 
-parseTree(questionList, 0);
-
 addInputButton.addEventListener("click", (event) => {
   event.preventDefault();
   let newQuestion = newSubQuestion(questionID, "", "", "", "Yes/No");
   form.insertBefore(createFormElement(newQuestion, 1), addInputButton);
   questionList.push(newQuestion);
-  dataContainer.textContent = JSON.stringify(questionList, null, "  ");
-
+  //dataContainer.textContent = JSON.stringify(questionList, null, "  ");
+  // if (idbOK) {
+  //   saveData(db.store, newQuestion);
+  // }
+  setMessage("Your changes might not be saved", "notsaved");
   questionID++;
 });
-
-
-dataContainer.textContent = JSON.stringify(questionList, null, "  ");
-
 
 function changeData(array, input, id) {
   for (let i = 0, len = array.length; i < len; i++) {
@@ -250,9 +349,7 @@ function changeData(array, input, id) {
       } else if (input.classList.contains("select-type")) {
         array[i].type = input.value;
       }
-
-      dataContainer.textContent = JSON.stringify(questionList, null, "  ");
-
+      //dataContainer.textContent = JSON.stringify(questionList, null, "  ");
       return;
     }
     if (array[i].subquestions.length > 0) {
