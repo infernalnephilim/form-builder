@@ -1,3 +1,7 @@
+/******************************************************************************************************************
+ * Form builder v1.0
+ * Author: Aleksandra Półtorak
+ ******************************************************************************************************************/
 var db;
 const DB_NAME = 'questionList-indexeddb';
 const DB_VERSION = 1;
@@ -9,28 +13,27 @@ var questionID = 1;
 
 var form = document.getElementById("form-builder");
 var addInputButton = document.getElementById("add-input");
-
 //const dataContainer = document.getElementsByClassName('result')[0];
 
-// var message = "Your changes might not be saved.";
-// window.onbeforeunload = function(event) {
-//   var e = e || window.event;
-//   if (e) {
-//     e.returnValue = message;
-//   }
-//   return message;
-// };
 function idbOK() {
   return "indexedDB" in window &&
     !/iPad|iPhone|iPod/.test(navigator.platform);
 }
 
+if (!idbOK) {
+  window.alert("Your browser doesn't support a stable version of IndexedDB.");
+} else {
+  openDb();
+}
+
+// A function which opens indexedDB database and creating table
 function openDb() {
   var req = indexedDB.open(DB_NAME, DB_VERSION);
   req.onsuccess = function (evt) {
     db = this.result;
     getResult(db.store);
 
+    // Save button click event
     document.getElementById("save-data").addEventListener("click", (event) => {
       event.preventDefault();
       saveAllChanges(db.store);
@@ -55,7 +58,7 @@ function openDb() {
   };
 }
 
-
+// A function which removes all data from store
 function clearObjectStore(store_name) {
   var store = getObjectStore(DB_STORE_NAME, 'readwrite');
   var req = store.clear();
@@ -69,12 +72,14 @@ function clearObjectStore(store_name) {
   };
 }
 
+// A function which saves main level questions
 function saveData(store, question) {
   if (typeof store == 'undefined')
     store = getObjectStore(DB_STORE_NAME, 'readwrite');
   store.put(question);
 }
 
+// A function which saves all data from thee form
 function saveAllChanges(store) {
   console.log("saveAllChanges");
   if (typeof store == 'undefined')
@@ -89,7 +94,7 @@ function saveAllChanges(store) {
   setMessage("Last saved: " + date.getDate() + "." + date.getMonth() + "." + date.getFullYear() + " " + date.getHours() + ":" + date.getMinutes(), "saved");
 }
 
-
+// A function which deletes choosen main level question
 function deleteData(store, question) {
   if (typeof store == 'undefined')
     store = getObjectStore(DB_STORE_NAME, 'readwrite');
@@ -100,11 +105,13 @@ function deleteData(store, question) {
   };
 }
 
+
 function getObjectStore(store_name, mode) {
   var tx = db.transaction(store_name, mode);
   return tx.objectStore(store_name);
 }
 
+// A function which gets data from database and adds it to an array
 function getResult(store) {
   if (typeof store == 'undefined')
     store = getObjectStore(DB_STORE_NAME, 'readwrite');
@@ -122,15 +129,8 @@ function getResult(store) {
   };
 }
 
-
-if (!idbOK) {
-  window.alert("Your browser doesn't support a stable version of IndexedDB.");
-} else {
-  openDb();
-
-}
-
-function newSubQuestion(id, condition, conditionAnswer, questionText, type) {
+// A function which creates new question object
+function newQuestion(id, condition, conditionAnswer, questionText, type) {
   var question = {
     "id": id,
     "condition": condition,
@@ -143,6 +143,7 @@ function newSubQuestion(id, condition, conditionAnswer, questionText, type) {
   return question;
 }
 
+// A function which creates HTML for new question object
 function createFormElement(object, level) {
   var defaultQuestion = document.createElement("div");
   defaultQuestion.setAttribute("id", object.id);
@@ -229,6 +230,7 @@ function createFormElement(object, level) {
     "        </ul>";
 
   defaultQuestion.innerHTML = content;
+  // adding event listeners to buttons
   defaultQuestion.getElementsByClassName("add-sub-input")[0].addEventListener("click", (event) => {
     let button = defaultQuestion.getElementsByClassName("add-sub-input")[0].parentNode.parentNode.parentNode;
     event.preventDefault();
@@ -238,9 +240,8 @@ function createFormElement(object, level) {
       conditionText = "Yes";
     }
 
-    var newSubQ = newSubQuestion(questionID, condition, conditionText, "", object.type);
+    var newSubQ = newQuestion(questionID, condition, conditionText, "", object.type);
     object.subquestions.push(newSubQ);
-    console.log(object.id);
     // saveSubQuestionData(db.store, newSubQ, object.id);
     form.insertBefore(createFormElement(newSubQ, level + 1), button.nextSibling);
     setMessage("Your changes might not be saved", "notsaved");
@@ -249,13 +250,13 @@ function createFormElement(object, level) {
   });
   defaultQuestion.getElementsByClassName("delete-input")[0].addEventListener("click", (event) => {
     event.preventDefault();
-
     removeFormRows(object);
     questionList = removeNode(questionList, object.id, level);
     setMessage("Your changes might not be saved", "notsaved");
     //dataContainer.textContent = JSON.stringify(questionList, null, "  ");
 
   });
+  // adding input change event listeners
   var inputs = defaultQuestion.getElementsByTagName("input");
   if (inputs.length > 0) {
     for (let i = 0; i < inputs.length; i++) {
@@ -267,7 +268,6 @@ function createFormElement(object, level) {
 
     }
   }
-
   var selects = defaultQuestion.getElementsByTagName("select");
   if (selects.length > 0) {
     for (let i = 0; i < selects.length; i++) {
@@ -280,7 +280,7 @@ function createFormElement(object, level) {
   }
   return defaultQuestion;
 }
-
+// A function which sets saving message
 function setMessage(message, saved) {
   let messageElement = document.getElementById("save-message");
   messageElement.innerHTML = message;
@@ -290,7 +290,7 @@ function setMessage(message, saved) {
     messageElement.classList.add("urgent");
   }
 }
-
+// A function which removes HTML code of chosen object
 function removeFormRows(object) {
   if (object.subquestions.length > 0) {
     for (let i = 0; i < object.subquestions.length; i++) {
@@ -301,7 +301,7 @@ function removeFormRows(object) {
   }
   document.getElementById(object.id).remove();
 }
-
+// A function which removes question from JSON
 function removeNode(array, id, level) {
   //deleteData(db.store, id);
   return array.filter(function (item) {
@@ -310,7 +310,7 @@ function removeNode(array, id, level) {
     return item.id !== id;
   });
 }
-
+// A function which 'draws' a form after reload
 function parseTree(array, level) {
   level += 1;
   for (let i = 0, len = array.length; i < len; i++) {
@@ -321,10 +321,10 @@ function parseTree(array, level) {
     }
   }
 }
-
+// Adding event listener for "Add Input" button
 addInputButton.addEventListener("click", (event) => {
   event.preventDefault();
-  let newQuestion = newSubQuestion(questionID, "", "", "", "Yes/No");
+  let newQuestion = newQuestion(questionID, "", "", "", "Yes/No");
   form.insertBefore(createFormElement(newQuestion, 1), addInputButton);
   questionList.push(newQuestion);
   //dataContainer.textContent = JSON.stringify(questionList, null, "  ");
@@ -334,7 +334,7 @@ addInputButton.addEventListener("click", (event) => {
   setMessage("Your changes might not be saved", "notsaved");
   questionID++;
 });
-
+// A function which changes data after input change
 function changeData(array, input, id) {
   for (let i = 0, len = array.length; i < len; i++) {
     if (array[i].id == id) {
@@ -357,3 +357,12 @@ function changeData(array, input, id) {
     }
   }
 }
+
+// var message = "Your changes might not be saved.";
+// window.onbeforeunload = function(event) {
+//   var e = e || window.event;
+//   if (e) {
+//     e.returnValue = message;
+//   }
+//   return message;
+// };
